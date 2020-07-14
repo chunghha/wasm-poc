@@ -1,6 +1,8 @@
 import { Request, Response } from "https://deno.land/x/oak/mod.ts";
-import { getWasmExports } from "./wasm.ts";
+
+import { CountRequest } from "./count-request.ts";
 import { getLogger } from "./log.ts";
+import { getWasmExports } from "./wasm.ts";
 
 export const getCount = async (
   ctx: { request: Request; response: Response },
@@ -9,11 +11,8 @@ export const getCount = async (
 
   const rwasm = await getWasmExports();
   const maxRounds = 46340;
-  const body = await ctx.request.body();
-  if (
-    body == undefined || body.value.type == undefined ||
-    body.value.rounds == undefined
-  ) {
+  const countRequest: CountRequest | undefined = await ctx.request.body().value;
+  if (countRequest?.type == undefined || countRequest?.rounds == undefined) {
     ctx.response.status = 400;
     ctx.response.body = {
       error: "Invalid data, request with 'type' and 'rounds'.",
@@ -21,16 +20,13 @@ export const getCount = async (
     return;
   }
 
-  const type = body.value.type;
-  const rounds = body.value.rounds;
-
-  if (!(["deno", "rust"].includes(type))) {
+  if (!(["deno", "rust"].includes(countRequest.type))) {
     ctx.response.status = 400;
     ctx.response.body = { error: "'type' is not 'deno' or 'rust'." };
     return;
   }
 
-  if (rounds > maxRounds) {
+  if (countRequest.rounds > maxRounds) {
     ctx.response.status = 400;
     ctx.response.body = { error: "'rounds' is out of bounds." };
     return;
@@ -40,21 +36,22 @@ export const getCount = async (
   const start = performance.now() * scale;
 
   let count = 0;
-  if (type == "deno") {
+  
+  if (countRequest.type == "deno") {
     logger.debug("process deno");
-    for (let i = 0; i < rounds; i++) {
-      for (let j = 0; j < rounds; j++) {
+    for (let i = 0; i < countRequest.rounds; i++) {
+      for (let j = 0; j < countRequest.rounds; j++) {
         count += 1;
       }
     }
   } else {
     logger.debug("process rust");
-    count = rwasm.compute(rounds);
+    count = rwasm.compute(countRequest.rounds);
   }
 
   const duration = performance.now() * scale - start;
 
   ctx.response.status = 200;
-  ctx.response.body = { type, duration, count };
+  ctx.response.body = { type: countRequest.type, duration, count };
   logger.info(JSON.stringify(ctx.response.body));
 };

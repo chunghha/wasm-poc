@@ -2,14 +2,14 @@ import { Request, Response } from "https://deno.land/x/oak/mod.ts";
 
 import { CountRequest } from "./count-request.ts";
 import { getLogger } from "./log.ts";
-import { getWasmExports } from "./wasm.ts";
+import { getWasmComputeFunc } from "./wasm.ts";
 
 export const getCount = async (
   ctx: { request: Request; response: Response },
 ) => {
   const logger = await getLogger();
 
-  const rwasm = await getWasmExports();
+  const compute: CallableFunction = await getWasmComputeFunc();
   const maxRounds = 46340;
   const countRequest: CountRequest | undefined = await ctx.request.body().value;
   if (countRequest?.type == undefined || countRequest?.rounds == undefined) {
@@ -46,7 +46,7 @@ export const getCount = async (
     }
   } else {
     logger.debug("process rust");
-    count = rwasm.compute(countRequest.rounds);
+    count = compute(countRequest.rounds);
   }
 
   const duration = performance.now() * scale - start;
